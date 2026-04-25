@@ -150,6 +150,8 @@ Needed later:
 - Cloud OCR credentials: if using Google Vision, AWS Textract, or Azure Document Intelligence.
 - Push credentials: only if alerts are needed while the app is closed/backgrounded.
 
-## PRD
+## PRD and Architecture
 
 See [docs/ai-tutor-prd.md](/Users/vipul.pandey/projects/ai-tutor/docs/ai-tutor-prd.md).
+
+Presentation-ready Mermaid diagrams are in [docs/architecture-diagram.md](/Users/vipul.pandey/projects/ai-tutor/docs/architecture-diagram.md).

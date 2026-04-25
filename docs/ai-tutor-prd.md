@@ -266,6 +266,8 @@ Metabase will read analytics views and provide subscriptions/alerts.
 
 Use Spring Boot as the product backend and Python workers for AI/CV workloads.
 
+Presentation-ready diagrams are maintained in [architecture-diagram.md](/Users/vipul.pandey/projects/ai-tutor/docs/architecture-diagram.md).
+
 ```text
 Expo React Native App
  iOS / Android / Tablet / Web
