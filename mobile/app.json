@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.aitutor.mobile"
     },
     "android": {
-      "package": "com.aitutor.mobile"
+      "package": "com.aitutor.mobile",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       [

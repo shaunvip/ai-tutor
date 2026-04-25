@@ -1,5 +1,6 @@
 package com.aitutor.api.auth;
 
+import com.aitutor.api.config.AppConstants;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,9 +26,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            String tokenValue = header.substring("Bearer ".length()).trim();
+        String header = request.getHeader(AppConstants.AUTHORIZATION_HEADER);
+        if (header != null && header.startsWith(AppConstants.BEARER_PREFIX)) {
+            String tokenValue = header.substring(AppConstants.BEARER_PREFIX.length()).trim();
             tokens.findByToken(tokenValue)
                     .flatMap(token -> students.findById(token.getStudentId()))
                     .ifPresent(student -> {

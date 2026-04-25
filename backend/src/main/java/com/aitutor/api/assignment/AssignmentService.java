@@ -2,6 +2,7 @@ package com.aitutor.api.assignment;
 
 import com.aitutor.api.auth.Student;
 import com.aitutor.api.auth.StudentRepository;
+import com.aitutor.api.config.AppConstants;
 import com.aitutor.api.storage.StorageService;
 import com.aitutor.api.storage.StoredFile;
 import com.aitutor.api.worker.AssignmentAnalysisCommand;
@@ -9,6 +10,7 @@ import com.aitutor.api.worker.AssignmentAnalysisResult;
 import com.aitutor.api.worker.PlanStepResult;
 import com.aitutor.api.worker.WorkerClient;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,8 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class AssignmentService {
-
-    private static final String HOMEWORK_IMAGE = "HOMEWORK_IMAGE";
 
     private final AssignmentRepository assignments;
     private final AssignmentAssetRepository assets;
@@ -39,8 +39,14 @@ public class AssignmentService {
 
     @Transactional
     public AssignmentResponse create(UUID studentId, CreateAssignmentRequest request) {
-        Assignment assignment = assignments.save(new Assignment(studentId, request.subject()));
+        Assignment assignment = assignments.save(new Assignment(studentId, normalizeSubject(request.subject())));
         return response(assignment);
+    }
+
+    public List<String> subjects() {
+        return AppConstants.SUBJECTS.stream()
+                .sorted()
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -58,10 +64,10 @@ public class AssignmentService {
     @Transactional
     public AssignmentResponse uploadHomeworkImage(UUID studentId, UUID assignmentId, MultipartFile file) {
         Assignment assignment = findOwned(studentId, assignmentId);
-        StoredFile stored = storageService.save(file, studentId, "assignments");
+        StoredFile stored = storageService.save(file, studentId, AppConstants.STORAGE_CATEGORY_ASSIGNMENTS);
         assets.save(new AssignmentAsset(
                 assignment.getId(),
-                HOMEWORK_IMAGE,
+                AppConstants.ASSET_TYPE_HOMEWORK_IMAGE,
                 stored.objectKey(),
                 stored.filePath(),
                 stored.contentType(),
@@ -76,7 +82,10 @@ public class AssignmentService {
         Assignment assignment = findOwned(studentId, assignmentId);
         Student student = students.findById(studentId)
                 .orElseThrow(() -> new IllegalArgumentException("Student not found"));
-        AssignmentAsset image = assets.findFirstByAssignmentIdAndAssetTypeOrderByCreatedAtDesc(assignmentId, HOMEWORK_IMAGE)
+        AssignmentAsset image = assets.findFirstByAssignmentIdAndAssetTypeOrderByCreatedAtDesc(
+                        assignmentId,
+                        AppConstants.ASSET_TYPE_HOMEWORK_IMAGE
+                )
                 .orElseThrow(() -> new IllegalStateException("Upload a homework image before analysis"));
 
         AssignmentAnalysisResult result = workerClient.analyzeAssignment(new AssignmentAnalysisCommand(
@@ -142,5 +151,13 @@ public class AssignmentService {
                 assignment.getSummary(),
                 planSteps
         );
+    }
+
+    private String normalizeSubject(String rawSubject) {
+        String subject = rawSubject == null ? "" : rawSubject.trim().toUpperCase(Locale.ROOT);
+        if (!AppConstants.SUBJECTS.contains(subject)) {
+            throw new IllegalArgumentException("Subject must be one of: " + String.join(", ", subjects()));
+        }
+        return subject;
     }
 }

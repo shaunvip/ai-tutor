@@ -7,7 +7,9 @@ import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -26,6 +28,7 @@ import {
   completeStep,
   createAssignment,
   createTutorThread,
+  getSubjects,
   login,
   register,
   saveToken,
@@ -38,6 +41,7 @@ import {
 
 type AuthMode = "login" | "register";
 type CaptureRate = 3 | 4;
+const DEFAULT_SUBJECTS = ["HINDI", "ENGLISH", "MATHS"];
 
 export default function StudyHome() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -52,7 +56,9 @@ export default function StudyHome() {
   const [displayName, setDisplayName] = useState("Student");
   const [age, setAge] = useState("8");
   const [gradeLevel, setGradeLevel] = useState("3");
-  const [subject, setSubject] = useState("Math");
+  const [subjects, setSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
+  const [subject, setSubject] = useState("MATHS");
+  const [subjectMenuOpen, setSubjectMenuOpen] = useState(false);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [session, setSession] = useState<StudySession | null>(null);
   const [latestProgress, setLatestProgress] = useState<ProgressCapture | null>(null);
@@ -80,6 +86,21 @@ export default function StudyHome() {
   const focusNudgeText = focusAlertText || `Back to ${currentStep?.title ?? "your work"}.`;
   const autoCaptureIntervalSeconds = Math.round(60 / autoCapturesPerMinute);
   const studyCameraOn = autoCaptureOn || focusWatchOn;
+
+  useEffect(() => {
+    if (!tokenReady) return;
+    getSubjects()
+      .then((values) => {
+        const nextSubjects = values.filter(Boolean);
+        if (nextSubjects.length === 0) return;
+        setSubjects(nextSubjects);
+        setSubject((current) => (nextSubjects.includes(current) ? current : nextSubjects[0]));
+      })
+      .catch(() => {
+        setSubjects(DEFAULT_SUBJECTS);
+        setSubject((current) => (DEFAULT_SUBJECTS.includes(current) ? current : DEFAULT_SUBJECTS[0]));
+      });
+  }, [tokenReady]);
 
   useEffect(() => {
     if (!focusWatchOn || !session) return;
@@ -332,30 +353,41 @@ export default function StudyHome() {
   if (!tokenReady) {
     return (
       <SafeAreaView style={styles.screen}>
-        <View style={styles.authPanel}>
-          <Text style={styles.title}>AI Tutor</Text>
-          <View style={styles.segment}>
-            <SegmentButton label="Register" active={authMode === "register"} onPress={() => setAuthMode("register")} />
-            <SegmentButton label="Login" active={authMode === "login"} onPress={() => setAuthMode("login")} />
-          </View>
-          <TextInput style={styles.input} value={username} onChangeText={setUsername} autoCapitalize="none" />
-          <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
-          {authMode === "register" ? (
-            <>
-              <TextInput style={styles.input} value={displayName} onChangeText={setDisplayName} />
-              <View style={styles.row}>
-                <TextInput style={[styles.input, styles.flex]} value={age} onChangeText={setAge} keyboardType="number-pad" />
-                <TextInput
-                  style={[styles.input, styles.flex]}
-                  value={gradeLevel}
-                  onChangeText={setGradeLevel}
-                  keyboardType="number-pad"
-                />
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoider}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView
+            contentContainerStyle={styles.authContent}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.authPanel}>
+              <Text style={styles.title}>AI Tutor</Text>
+              <View style={styles.segment}>
+                <SegmentButton label="Register" active={authMode === "register"} onPress={() => setAuthMode("register")} />
+                <SegmentButton label="Login" active={authMode === "login"} onPress={() => setAuthMode("login")} />
               </View>
-            </>
-          ) : null}
-          <ActionButton icon={<Ionicons name="checkmark" size={18} color="#fff" />} label={authMode === "login" ? "Login" : "Start"} onPress={handleAuth} />
-        </View>
+              <TextInput style={styles.input} value={username} onChangeText={setUsername} autoCapitalize="none" />
+              <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
+              {authMode === "register" ? (
+                <>
+                  <TextInput style={styles.input} value={displayName} onChangeText={setDisplayName} />
+                  <View style={styles.row}>
+                    <TextInput style={[styles.input, styles.flex]} value={age} onChangeText={setAge} keyboardType="number-pad" />
+                    <TextInput
+                      style={[styles.input, styles.flex]}
+                      value={gradeLevel}
+                      onChangeText={setGradeLevel}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </>
+              ) : null}
+              <ActionButton icon={<Ionicons name="checkmark" size={18} color="#fff" />} label={authMode === "login" ? "Login" : "Start"} onPress={handleAuth} />
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
         <BusyOverlay visible={busy} />
       </SafeAreaView>
     );
@@ -363,140 +395,158 @@ export default function StudyHome() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>Study Session</Text>
-            <Text style={styles.title}>AI Tutor</Text>
-          </View>
-          <Pressable
-            accessibilityLabel="Ask tutor"
-            style={styles.iconButton}
-            onPress={() => {
-              setQuestion((value) => value || `I need help with ${currentStep?.title ?? "the current question"}.`);
-              setTutorReply("");
-            }}
-          >
-            <Ionicons name="hand-left-outline" size={22} color="#243447" />
-          </Pressable>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Homework</Text>
-          <View style={styles.row}>
-            <TextInput style={[styles.input, styles.flex]} value={subject} onChangeText={setSubject} />
-            <ActionButton icon={<Ionicons name="camera-outline" size={18} color="#fff" />} label="Scan" onPress={pickImage} compact />
-          </View>
-        </View>
-
-        {assignment ? (
-          <View style={styles.section}>
-            <View style={styles.metricRow}>
-              <Metric label="Time" value={`${assignment.estimatedTotalMinutes ?? "-"}m`} />
-              <Metric label="Questions" value={`${assignment.questionCount ?? "-"}`} />
-              <Metric label="Words" value={`${assignment.estimatedWordCount ?? "-"}`} />
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoider}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.eyebrow}>Study Session</Text>
+              <Text style={styles.title}>AI Tutor</Text>
             </View>
-            <Timeline assignment={assignment} currentStepOrder={session?.currentStepOrder ?? 1} onComplete={handleCompleteStep} />
-            {!session ? (
-              <ActionButton icon={<Ionicons name="play" size={18} color="#fff" />} label="Start Session" onPress={handleStartSession} />
-            ) : null}
+            <Pressable
+              accessibilityLabel="Ask tutor"
+              style={styles.iconButton}
+              onPress={() => {
+                setQuestion((value) => value || `I need help with ${currentStep?.title ?? "the current question"}.`);
+                setTutorReply("");
+              }}
+            >
+              <Ionicons name="hand-left-outline" size={22} color="#243447" />
+            </Pressable>
           </View>
-        ) : null}
 
-        {session ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{currentStep?.title ?? "Current step"}</Text>
+            <Text style={styles.sectionTitle}>Homework</Text>
             <View style={styles.row}>
-              <ActionButton icon={<Ionicons name="camera-outline" size={18} color="#fff" />} label="Progress" onPress={handleProgressCapture} compact />
-              <ActionButton
-                icon={<Ionicons name="timer-outline" size={18} color="#fff" />}
-                label={focusWatchOn ? `${focusSeconds}s` : "Focus"}
-                onPress={handleToggleFocusWatch}
-                compact
-                secondary
+              <SubjectDropdown
+                value={subject}
+                subjects={subjects}
+                open={subjectMenuOpen}
+                onToggle={() => setSubjectMenuOpen((value) => !value)}
+                onSelect={(value) => {
+                  setSubject(value);
+                  setSubjectMenuOpen(false);
+                }}
               />
+              <ActionButton icon={<Ionicons name="camera-outline" size={18} color="#fff" />} label="Scan" onPress={pickImage} compact />
             </View>
-            <View style={styles.autoCapturePanel}>
-              <View style={styles.autoCaptureHeader}>
-                <View>
-                  <Text style={styles.autoCaptureTitle}>Auto Capture</Text>
-                  <Text style={styles.muted}>
-                    {autoCaptureOn ? `${autoCaptureCount} saved · every ${autoCaptureIntervalSeconds}s` : "Progress off"}
-                  </Text>
-                  {focusWatchOn ? <Text style={styles.muted}>Focus check every 5s</Text> : null}
-                </View>
+          </View>
+
+          {assignment ? (
+            <View style={styles.section}>
+              <View style={styles.metricRow}>
+                <Metric label="Time" value={`${assignment.estimatedTotalMinutes ?? "-"}m`} />
+                <Metric label="Questions" value={`${assignment.questionCount ?? "-"}`} />
+                <Metric label="Words" value={`${assignment.estimatedWordCount ?? "-"}`} />
+              </View>
+              <Timeline assignment={assignment} currentStepOrder={session?.currentStepOrder ?? 1} onComplete={handleCompleteStep} />
+              {!session ? (
+                <ActionButton icon={<Ionicons name="play" size={18} color="#fff" />} label="Start Session" onPress={handleStartSession} />
+              ) : null}
+            </View>
+          ) : null}
+
+          {session ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{currentStep?.title ?? "Current step"}</Text>
+              <View style={styles.row}>
+                <ActionButton icon={<Ionicons name="camera-outline" size={18} color="#fff" />} label="Progress" onPress={handleProgressCapture} compact />
                 <ActionButton
-                  icon={<Ionicons name={autoCaptureOn ? "pause" : "aperture-outline"} size={18} color="#fff" />}
-                  label={autoCaptureOn ? "Stop" : "Auto"}
-                  onPress={handleToggleAutoCapture}
+                  icon={<Ionicons name="timer-outline" size={18} color="#fff" />}
+                  label={focusWatchOn ? `${focusSeconds}s` : "Focus"}
+                  onPress={handleToggleFocusWatch}
                   compact
-                  secondary={autoCaptureOn}
+                  secondary
                 />
               </View>
-              <View style={styles.captureRateRow}>
-                <SegmentButton
-                  label="3/min"
-                  active={autoCapturesPerMinute === 3}
-                  onPress={() => setAutoCapturesPerMinute(3)}
-                />
-                <SegmentButton
-                  label="4/min"
-                  active={autoCapturesPerMinute === 4}
-                  onPress={() => setAutoCapturesPerMinute(4)}
-                />
+              <View style={styles.autoCapturePanel}>
+                <View style={styles.autoCaptureHeader}>
+                  <View>
+                    <Text style={styles.autoCaptureTitle}>Auto Capture</Text>
+                    <Text style={styles.muted}>
+                      {autoCaptureOn ? `${autoCaptureCount} saved · every ${autoCaptureIntervalSeconds}s` : "Progress off"}
+                    </Text>
+                    {focusWatchOn ? <Text style={styles.muted}>Focus check every 5s</Text> : null}
+                  </View>
+                  <ActionButton
+                    icon={<Ionicons name={autoCaptureOn ? "pause" : "aperture-outline"} size={18} color="#fff" />}
+                    label={autoCaptureOn ? "Stop" : "Auto"}
+                    onPress={handleToggleAutoCapture}
+                    compact
+                    secondary={autoCaptureOn}
+                  />
+                </View>
+                <View style={styles.captureRateRow}>
+                  <SegmentButton
+                    label="3/min"
+                    active={autoCapturesPerMinute === 3}
+                    onPress={() => setAutoCapturesPerMinute(3)}
+                  />
+                  <SegmentButton
+                    label="4/min"
+                    active={autoCapturesPerMinute === 4}
+                    onPress={() => setAutoCapturesPerMinute(4)}
+                  />
+                </View>
+                {studyCameraOn && cameraPermission?.granted ? (
+                  <CameraView
+                    ref={autoCameraRef}
+                    style={styles.cameraPreview}
+                    facing="front"
+                    mode="picture"
+                    mirror
+                    active={studyCameraOn}
+                    onCameraReady={() => setAutoCaptureReady(true)}
+                    onMountError={(event) => setAutoCaptureError(event.message)}
+                  />
+                ) : null}
+                {autoCaptureError ? <Text style={styles.errorText}>{autoCaptureError}</Text> : null}
+                {focusCheckError ? <Text style={styles.errorText}>{focusCheckError}</Text> : null}
+                {latestFocusCheck ? (
+                  <Text style={styles.muted}>
+                    Focus: {latestFocusCheck.lookingAway ? "looking away" : "ok"} ·{" "}
+                    {Math.round(latestFocusCheck.confidence * 100)}%
+                  </Text>
+                ) : null}
               </View>
-              {studyCameraOn && cameraPermission?.granted ? (
-                <CameraView
-                  ref={autoCameraRef}
-                  style={styles.cameraPreview}
-                  facing="front"
-                  mode="picture"
-                  mirror
-                  active={studyCameraOn}
-                  onCameraReady={() => setAutoCaptureReady(true)}
-                  onMountError={(event) => setAutoCaptureError(event.message)}
-                />
-              ) : null}
-              {autoCaptureError ? <Text style={styles.errorText}>{autoCaptureError}</Text> : null}
-              {focusCheckError ? <Text style={styles.errorText}>{focusCheckError}</Text> : null}
-              {latestFocusCheck ? (
-                <Text style={styles.muted}>
-                  Focus: {latestFocusCheck.lookingAway ? "looking away" : "ok"} ·{" "}
-                  {Math.round(latestFocusCheck.confidence * 100)}%
-                </Text>
+              {latestProgress ? (
+                <View style={styles.progressBand}>
+                  <Text style={styles.progressText}>{latestProgress.completionPercent ?? 0}% complete</Text>
+                  <Text style={styles.muted}>{latestProgress.summary}</Text>
+                </View>
               ) : null}
             </View>
-            {latestProgress ? (
-              <View style={styles.progressBand}>
-                <Text style={styles.progressText}>{latestProgress.completionPercent ?? 0}% complete</Text>
-                <Text style={styles.muted}>{latestProgress.summary}</Text>
+          ) : null}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ask Tutor</Text>
+            <TextInput
+              style={[styles.input, styles.questionInput]}
+              value={question}
+              onChangeText={setQuestion}
+              multiline
+            />
+            <ActionButton icon={<Ionicons name="help-circle-outline" size={18} color="#fff" />} label="Hint" onPress={handleTutorAsk} />
+            {tutorBusy ? (
+              <View style={styles.reply}>
+                <ActivityIndicator color="#255f85" />
+              </View>
+            ) : null}
+            {tutorReply ? (
+              <View style={styles.reply}>
+                <Text style={styles.replyLabel}>Tutor Hint</Text>
+                <Text style={styles.replyText}>{tutorReply}</Text>
               </View>
             ) : null}
           </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ask Tutor</Text>
-          <TextInput
-            style={[styles.input, styles.questionInput]}
-            value={question}
-            onChangeText={setQuestion}
-            multiline
-          />
-          <ActionButton icon={<Ionicons name="help-circle-outline" size={18} color="#fff" />} label="Hint" onPress={handleTutorAsk} />
-          {tutorBusy ? (
-            <View style={styles.reply}>
-              <ActivityIndicator color="#255f85" />
-            </View>
-          ) : null}
-          {tutorReply ? (
-            <View style={styles.reply}>
-              <Text style={styles.replyLabel}>Tutor Hint</Text>
-              <Text style={styles.replyText}>{tutorReply}</Text>
-            </View>
-          ) : null}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <Modal visible={nudgeVisible} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
@@ -551,6 +601,44 @@ function ActionButton({
       {icon}
       <Text style={styles.actionText}>{label}</Text>
     </Pressable>
+  );
+}
+
+function SubjectDropdown({
+  value,
+  subjects,
+  open,
+  onToggle,
+  onSelect
+}: {
+  value: string;
+  subjects: string[];
+  open: boolean;
+  onToggle: () => void;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <View style={styles.subjectSelect}>
+      <Pressable style={styles.subjectButton} onPress={onToggle}>
+        <Text style={styles.subjectValue}>{value}</Text>
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color="#52616b" />
+      </Pressable>
+      {open ? (
+        <View style={styles.subjectMenu}>
+          {subjects.map((option) => (
+            <Pressable
+              key={option}
+              style={[styles.subjectOption, option === value && styles.subjectOptionActive]}
+              onPress={() => onSelect(option)}
+            >
+              <Text style={[styles.subjectOptionText, option === value && styles.subjectOptionTextActive]}>
+                {option}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -612,8 +700,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f7f8"
   },
+  keyboardAvoider: {
+    flex: 1
+  },
+  authContent: {
+    flexGrow: 1
+  },
   content: {
     padding: 18,
+    paddingBottom: 36,
     gap: 14
   },
   authPanel: {
@@ -720,6 +815,49 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700"
+  },
+  subjectSelect: {
+    flex: 1,
+    gap: 6
+  },
+  subjectButton: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#cbd5de",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 46,
+    paddingHorizontal: 12
+  },
+  subjectValue: {
+    color: "#1f2933",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+  subjectMenu: {
+    backgroundColor: "#fff",
+    borderColor: "#cbd5de",
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: "hidden"
+  },
+  subjectOption: {
+    minHeight: 42,
+    justifyContent: "center",
+    paddingHorizontal: 12
+  },
+  subjectOptionActive: {
+    backgroundColor: "#eef3f5"
+  },
+  subjectOptionText: {
+    color: "#243447",
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  subjectOptionTextActive: {
+    color: "#255f85"
   },
   iconButton: {
     alignItems: "center",

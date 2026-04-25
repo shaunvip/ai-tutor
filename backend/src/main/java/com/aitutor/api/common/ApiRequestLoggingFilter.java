@@ -1,5 +1,6 @@
 package com.aitutor.api.common;
 
+import com.aitutor.api.config.AppConstants;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,7 +19,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class ApiRequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(ApiRequestLoggingFilter.class);
-    private static final int MAX_BODY_LOG_CHARS = 2_000;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -101,10 +101,10 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
             return "";
         }
         String body = new String(bytes, StandardCharsets.UTF_8).replaceAll("\\s+", " ").trim();
-        if (body.length() <= MAX_BODY_LOG_CHARS) {
+        if (body.length() <= AppConstants.API_REQUEST_LOG_MAX_BODY_CHARS) {
             return body;
         }
-        return body.substring(0, MAX_BODY_LOG_CHARS) + "...";
+        return body.substring(0, AppConstants.API_REQUEST_LOG_MAX_BODY_CHARS) + "...";
     }
 
     private String sanitize(String body) {

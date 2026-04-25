@@ -1,5 +1,6 @@
 package com.aitutor.api.worker;
 
+import com.aitutor.api.config.AppConstants;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -14,7 +15,6 @@ import org.springframework.web.client.RestClientResponseException;
 public class WorkerClient {
 
     private static final Logger log = LoggerFactory.getLogger(WorkerClient.class);
-    private static final int MAX_WORKER_LOG_CHARS = 2_000;
 
     private final RestClient workerRestClient;
     private final ObjectMapper objectMapper;
@@ -35,7 +35,7 @@ public class WorkerClient {
         );
         try {
             AssignmentAnalysisResult result = workerRestClient.post()
-                    .uri("/internal/analyze-assignment")
+                    .uri(AppConstants.WORKER_PATH_ANALYZE_ASSIGNMENT)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(jsonBody(command))
@@ -61,7 +61,7 @@ public class WorkerClient {
         );
         try {
             ProgressAnalysisResult result = workerRestClient.post()
-                    .uri("/internal/analyze-progress")
+                    .uri(AppConstants.WORKER_PATH_ANALYZE_PROGRESS)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(jsonBody(command))
@@ -85,7 +85,7 @@ public class WorkerClient {
         );
         try {
             FocusAnalysisResult result = workerRestClient.post()
-                    .uri("/internal/analyze-focus")
+                    .uri(AppConstants.WORKER_PATH_ANALYZE_FOCUS)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(jsonBody(command))
@@ -110,7 +110,7 @@ public class WorkerClient {
         );
         try {
             TutorHintResult result = workerRestClient.post()
-                    .uri("/internal/tutor-hint")
+                    .uri(AppConstants.WORKER_PATH_TUTOR_HINT)
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(jsonBody(command))
@@ -134,10 +134,10 @@ public class WorkerClient {
 
     private String truncate(Object value) {
         String text = String.valueOf(value);
-        if (text.length() <= MAX_WORKER_LOG_CHARS) {
+        if (text.length() <= AppConstants.WORKER_LOG_MAX_BODY_CHARS) {
             return text;
         }
-        return text.substring(0, MAX_WORKER_LOG_CHARS) + "...";
+        return text.substring(0, AppConstants.WORKER_LOG_MAX_BODY_CHARS) + "...";
     }
 
     private void logWorkerFailure(String operation, Exception ex) {

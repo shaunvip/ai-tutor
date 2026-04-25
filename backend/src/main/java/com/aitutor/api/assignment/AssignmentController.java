@@ -36,6 +36,11 @@ public class AssignmentController {
         return assignmentService.list(currentStudent.id());
     }
 
+    @GetMapping("/subjects")
+    List<String> subjects() {
+        return assignmentService.subjects();
+    }
+
     @GetMapping("/{assignmentId}")
     AssignmentResponse get(@PathVariable UUID assignmentId) {
         return assignmentService.get(currentStudent.id(), assignmentId);

@@ -99,6 +99,10 @@ export async function createAssignment(subject: string) {
   return post<Assignment>("/api/assignments", { subject });
 }
 
+export async function getSubjects() {
+  return get<string[]>("/api/assignments/subjects");
+}
+
 export async function uploadHomeworkImage(assignmentId: string, uri: string) {
   return upload<Assignment>(`/api/assignments/${assignmentId}/homework-image`, uri);
 }
@@ -146,6 +150,21 @@ async function post<T>(path: string, body: unknown, needsAuth = true): Promise<T
     method: "POST",
     headers,
     body: JSON.stringify(body)
+  });
+
+  return parseResponse<T>(response);
+}
+
+async function get<T>(path: string, needsAuth = true): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (needsAuth) {
+    const token = await getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers
   });
 
   return parseResponse<T>(response);

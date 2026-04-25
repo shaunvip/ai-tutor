@@ -51,6 +51,12 @@ The student using a phone or tablet during study.
 
 The student captures or uploads an image of homework/classwork.
 
+The student selects the subject from a backend-supplied dropdown. The MVP subject list is:
+
+- HINDI.
+- ENGLISH.
+- MATHS.
+
 The system extracts:
 
 - OCR text.

@@ -114,6 +114,12 @@ This app is mobile/tablet only for MVP. Use Expo Go, an iOS simulator, an Androi
 For a physical phone, use your machine LAN IP instead of `localhost`:
 
 ```bash
+ipconfig getifaddr en0
+```
+
+Use the returned IP in `EXPO_PUBLIC_API_BASE_URL`:
+
+```bash
 EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8080 npm run start
 ```
 
@@ -128,6 +134,7 @@ Stop the local AI Tutor stack, including Spring Boot, Python worker, Expo/Metro,
 ## Current MVP Capabilities
 
 - Register/login through local Spring session-token auth.
+- Load allowed homework subjects from Spring Boot and show them as a mobile dropdown.
 - Capture homework image from the mobile app.
 - Create assignment.
 - Upload homework image.
