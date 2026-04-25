@@ -43,12 +43,14 @@ Password: ai_tutor
 
 ## Run Python Worker
 
+For full first-time setup and troubleshooting, see [workers/ai_worker/README.md](/Users/vipul.pandey/projects/ai-tutor/workers/ai_worker/README.md).
+
 ```bash
 cd workers/ai_worker
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
-uvicorn app.main:app --reload --port 8000
+python -m pip install -e .
+.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 The worker defaults to local Ollama at `http://localhost:11434` with `gemma3:latest`. No API key is required.
