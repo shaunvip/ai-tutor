@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "AI Tutor",
+    "slug": "ai-tutor",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "aitutor",
+    "jsEngine": "hermes",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aitutor.mobile"
+    },
+    "android": {
+      "package": "com.aitutor.mobile"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "AI Tutor uses the camera to capture homework and progress photos during study sessions."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AI Tutor lets you choose homework and progress photos from your library."
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}

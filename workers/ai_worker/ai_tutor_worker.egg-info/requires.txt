@@ -1,0 +1,14 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+pillow>=10.0.0
+
+[ai]
+openai>=1.0.0
+
+[cv]
+opencv-python>=4.10.0
+numpy>=1.26.0
+
+[ocr]
+pytesseract>=0.3.13

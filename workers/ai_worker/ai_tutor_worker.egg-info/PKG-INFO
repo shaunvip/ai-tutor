@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: ai-tutor-worker
+Version: 0.1.0
+Summary: Internal AI/CV worker service for AI Tutor
+Requires-Python: >=3.11
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: pydantic>=2.7.0
+Requires-Dist: pillow>=10.0.0
+Provides-Extra: cv
+Requires-Dist: opencv-python>=4.10.0; extra == "cv"
+Requires-Dist: numpy>=1.26.0; extra == "cv"
+Provides-Extra: ocr
+Requires-Dist: pytesseract>=0.3.13; extra == "ocr"
+Provides-Extra: ai
+Requires-Dist: openai>=1.0.0; extra == "ai"

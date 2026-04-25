@@ -1,0 +1,24 @@
+.DS_Store
+
+# Java
+backend/target/
+
+# Python
+workers/ai_worker/.venv/
+workers/ai_worker/__pycache__/
+workers/ai_worker/app/__pycache__/
+*.pyc
+
+# Node / Expo
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# Local runtime data
+local-storage/
+postgres-data/
+metabase-data/
+
+# Env files
+.env
+*.local
