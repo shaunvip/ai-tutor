@@ -6,6 +6,8 @@ import com.aitutor.api.focus.FocusEvent;
 import com.aitutor.api.focus.FocusEventRepository;
 import com.aitutor.api.storage.StorageService;
 import com.aitutor.api.storage.StoredFile;
+import com.aitutor.api.worker.FocusAnalysisCommand;
+import com.aitutor.api.worker.FocusAnalysisResult;
 import com.aitutor.api.worker.ProgressAnalysisCommand;
 import com.aitutor.api.worker.ProgressAnalysisResult;
 import com.aitutor.api.worker.WorkerClient;
@@ -88,7 +90,7 @@ public class StudySessionService {
     @Transactional
     public ProgressCaptureResponse uploadProgressCapture(UUID studentId, UUID sessionId, MultipartFile file) {
         StudySession session = findOwned(studentId, sessionId);
-        StoredFile stored = storageService.save(file, "progress");
+        StoredFile stored = storageService.save(file, studentId, "progress");
         ProgressCapture capture = captures.save(new ProgressCapture(session.getId(), stored.objectKey(), stored.filePath()));
 
         int expectedMinute = Math.toIntExact(Math.max(0, Duration.between(session.getStartedAt(), Instant.now()).toMinutes()));
@@ -102,6 +104,35 @@ public class StudySessionService {
         capture.applyAnalysis(result.completionPercent(), result.confidence(), result.behindMinutes(), result.summary());
         events.save(new SessionEvent(session.getId(), "PROGRESS_CAPTURE_ANALYZED", "{\"captureId\":\"" + capture.getId() + "\"}"));
         return progressResponse(capture);
+    }
+
+    @Transactional
+    public FocusCheckResponse uploadFocusCheck(UUID studentId, UUID sessionId, MultipartFile file) {
+        StudySession session = findOwned(studentId, sessionId);
+        StoredFile stored = storageService.save(file, studentId, "focus");
+        FocusAnalysisResult result = workerClient.analyzeFocus(new FocusAnalysisCommand(
+                session.getId().toString(),
+                stored.filePath()
+        ));
+
+        if (result.alert()) {
+            String reason = result.reason() == null ? "Focus alert" : result.reason();
+            focusEvents.save(new FocusEvent(
+                    session.getId(),
+                    "LOOKING_AWAY_ALERT",
+                    null,
+                    reason + " | " + stored.objectKey()
+            ));
+            events.save(new SessionEvent(session.getId(), "LOOKING_AWAY_ALERT", "{\"objectKey\":\"" + stored.objectKey() + "\"}"));
+        }
+
+        return new FocusCheckResponse(
+                result.lookingAway(),
+                result.alert(),
+                result.confidence(),
+                result.reason(),
+                result.alertMessage()
+        );
     }
 
     private StudySession findOwned(UUID studentId, UUID sessionId) {

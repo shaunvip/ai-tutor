@@ -3,13 +3,18 @@ from pathlib import Path
 
 from PIL import Image
 
-from app.openai_analysis import analyze_assignment_with_openai
+from app.ollama_analysis import generate_tutor_hint_with_ollama
+from app.openai_analysis import analyze_assignment_with_openai, analyze_focus_with_openai
 from app.schemas import (
     AssignmentAnalysisCommand,
     AssignmentAnalysisResult,
+    FocusAnalysisCommand,
+    FocusAnalysisResult,
     PlanStepResult,
     ProgressAnalysisCommand,
     ProgressAnalysisResult,
+    TutorHintCommand,
+    TutorHintResult,
 )
 
 
@@ -63,6 +68,53 @@ def analyze_progress(command: ProgressAnalysisCommand) -> ProgressAnalysisResult
     )
 
 
+def analyze_focus(command: FocusAnalysisCommand) -> FocusAnalysisResult:
+    openai_result = analyze_focus_with_openai(command)
+    if openai_result is not None:
+        return openai_result
+
+    image_stats = _image_stats(command.focus_asset_path)
+    if not image_stats["readable"]:
+        return FocusAnalysisResult(
+            looking_away=False,
+            alert=False,
+            confidence=0.1,
+            reason="Focus frame was not readable",
+            alert_message="",
+        )
+
+    return FocusAnalysisResult(
+        looking_away=False,
+        alert=False,
+        confidence=0.2,
+        reason="Local worker cannot detect gaze without OpenAI image analysis enabled",
+        alert_message="",
+    )
+
+
+def generate_tutor_hint(command: TutorHintCommand) -> TutorHintResult:
+    ollama_result = generate_tutor_hint_with_ollama(command)
+    if ollama_result is not None:
+        return ollama_result
+
+    question = command.content.strip()
+    if _is_simple_addition(question):
+        return TutorHintResult(
+            content="2 + 2 = 4. You can count it as two things plus two more things.",
+            confidence=0.5,
+            provider="local-fallback",
+        )
+
+    return TutorHintResult(
+        content=(
+            "Let's solve it together. First, underline the important words in the question, "
+            "then try the first small step."
+        ),
+        confidence=0.3,
+        provider="local-fallback",
+    )
+
+
 def _image_stats(path: str) -> dict[str, int | bool]:
     image_path = Path(path)
     if not image_path.exists():
@@ -74,6 +126,11 @@ def _image_stats(path: str) -> dict[str, int | bool]:
             return {"readable": True, "width": width, "height": height, "area": width * height}
     except Exception:
         return {"readable": False, "width": 0, "height": 0, "area": 0}
+
+
+def _is_simple_addition(question: str) -> bool:
+    normalized = question.lower().replace(" ", "")
+    return "2+2" in normalized or "twoplustwo" in normalized or "2plus2" in normalized
 
 
 def _task_type_from_subject(subject: str) -> str:

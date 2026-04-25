@@ -16,6 +16,7 @@ The product should help the child stay on track without creating pressure. It sh
 - Let the child ask for help through a help/hand gesture icon.
 - Answer questions using hint-first tutoring instead of direct-answer-first behavior.
 - Learn the child's actual pace over time.
+- Let the student review their own study history: assignments, scanned images, extracted study questions, tutor questions asked, finish time, and actual duration.
 - Provide analytics through Metabase, not custom parent/team dashboards.
 
 ## 3. Non-Goals For MVP
@@ -208,11 +209,40 @@ Tracked by:
 - Help requests.
 - Actual vs estimated time.
 
+### 5.8 Student Study Record
+
+The student can open a "My Study" or "My Work" area to review completed and in-progress work.
+
+The list view should show:
+
+- Assignment title/subject.
+- Assignment status.
+- Planned duration.
+- Actual duration, if finished.
+- Started time.
+- Finished time, if finished.
+- On-track / behind / completed summary.
+
+The detail view should show:
+
+- Original scanned homework/classwork image.
+- Progress/scanned images captured during the session.
+- Extracted study questions or worksheet sections, when OCR/AI can identify them.
+- Timeline checkpoints and completion status.
+- Questions the student asked the tutor.
+- Tutor responses.
+- Time each question was asked.
+- Session finish time.
+- Actual vs planned completion difference.
+
+This view is for the student first. Parent/team reporting remains outside the app and is handled through Metabase.
+
 ## 6. Product Scope After Removing Parent/Team Modules
 
 Keep:
 
 - Student app.
+- Student study history and scanned work review.
 - Study session engine.
 - Assignment analysis.
 - Timeline planner.
@@ -417,6 +447,22 @@ Handles:
 - Materialized views.
 - Metabase-facing views.
 
+### 11.9 Student Study Record Module
+
+Handles read-only aggregation for the logged-in student:
+
+- Assignment list.
+- Assignment detail.
+- Original assignment images.
+- Progress/scanned images.
+- Extracted questions.
+- Session timeline.
+- Tutor question history.
+- Asked-at timestamps.
+- Started-at, finished-at, and actual duration.
+
+This module should not duplicate core data. It should compose data from assignment, study session, progress capture, and tutor tables.
+
 ## 12. Suggested Data Model
 
 Core tables:
@@ -439,6 +485,24 @@ tutor_messages
 analytics_events
 ```
 
+Important fields for student history:
+
+```text
+assignments.created_at
+assignments.completed_at
+assignment_assets.asset_type
+assignment_assets.storage_path
+assignment_features.extracted_questions
+study_sessions.started_at
+study_sessions.finished_at
+study_sessions.actual_duration_seconds
+progress_captures.created_at
+progress_captures.asset_path
+tutor_messages.created_at
+tutor_messages.student_role
+tutor_messages.content
+```
+
 Metabase views:
 
 ```text
@@ -448,6 +512,7 @@ mv_focus_summary
 mv_tutor_usage
 mv_student_speed_profile
 mv_behind_schedule_events
+mv_student_study_history
 ```
 
 ## 13. Main User Flows
@@ -507,6 +572,20 @@ Spring applies tutor policy
 Spring calls OpenAI or Python preprocessing if needed
 Spring returns hint-first response
 Session records help event
+```
+
+### 13.6 Student Study Record Flow
+
+```text
+Student opens My Study
+App -> Spring: fetch my assignments/sessions summary
+Spring -> DB: query assignments, latest session, completion times, plan summary
+Spring -> App: return study history list
+Student opens one assignment
+App -> Spring: fetch assignment detail
+Spring -> DB: query assignment images, extracted questions, plan steps, progress captures, tutor thread/messages
+Spring -> App: return complete study record
+App: shows scanned images, study questions, tutor questions, asked-at time, finished-at time, actual duration
 ```
 
 ## 14. Alerting and Nudges
@@ -578,6 +657,8 @@ Use Metabase dashboard subscriptions and alerts instead of custom dashboards.
 - Timeline UI.
 - Manual checkpoint completion.
 - Actual vs planned tracking.
+- Student study history list.
+- Assignment detail with started/finished time and actual duration.
 
 ### Phase 4: Progress Image Detection
 
@@ -601,6 +682,7 @@ Use Metabase dashboard subscriptions and alerts instead of custom dashboards.
 - Image/crop question support.
 - Hint-first tutor response.
 - Check-my-answer mode.
+- Persist asked-at time and show student question history inside assignment detail.
 
 ### Phase 7: Analytics
 

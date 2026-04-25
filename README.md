@@ -51,7 +51,7 @@ pip install -e .
 uvicorn app.main:app --reload --port 8000
 ```
 
-The worker currently uses local heuristics. No API key is required.
+The worker defaults to local Ollama at `http://localhost:11434` with `gemma3:latest`. No API key is required.
 
 ## Run Spring Boot API
 
@@ -67,6 +67,26 @@ http://localhost:8080
 ```
 
 Spring Boot creates the local schema using Hibernate `ddl-auto=update`.
+
+Captured homework and progress images are saved by the Spring API under the configured local storage root. The default is:
+
+```text
+/Users/vipul.pandey/images
+```
+
+The app stores files under each student id, then category subfolders:
+
+```text
+/Users/vipul.pandey/images/{studentId}/assignments
+/Users/vipul.pandey/images/{studentId}/progress
+/Users/vipul.pandey/images/{studentId}/focus
+```
+
+Override the root location with:
+
+```bash
+LOCAL_STORAGE_ROOT=/your/local/image/path mvn spring-boot:run
+```
 
 If Hibernate reports that it cannot determine the dialect, check that Postgres is running and that `DATABASE_URL` is not exported as an empty value:
 
@@ -95,6 +115,14 @@ For a physical phone, use your machine LAN IP instead of `localhost`:
 EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8080 npm run start
 ```
 
+## Stop Local Services
+
+Stop the local AI Tutor stack, including Spring Boot, Python worker, Expo/Metro, Postgres, and Ollama/Gemma if running:
+
+```bash
+./stop.sh
+```
+
 ## Current MVP Capabilities
 
 - Register/login through local Spring session-token auth.
@@ -106,6 +134,8 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:8080 npm run start
 - Start study session.
 - Manually complete steps.
 - Capture progress image.
+- Auto-capture progress images from the front camera at 3 or 4 captures per minute during a study session.
+- Front-camera focus checks during a study session, with voice alert when the worker detects looking away.
 - Record focus nudge events.
 - Ask Tutor with hint-first placeholder responses.
 
@@ -115,7 +145,7 @@ Not required for the scaffold. The Python worker falls back to local heuristics 
 
 Needed later:
 
-- `OPENAI_API_KEY`: real homework understanding, tutor answers, image reasoning.
+- `OPENAI_API_KEY`: real homework understanding, tutor answers, image reasoning, and focus/looking-away detection.
 - `OPENAI_MODEL`: defaults to `gpt-4.1-mini` in local examples.
 - Cloud OCR credentials: if using Google Vision, AWS Textract, or Azure Document Intelligence.
 - Push credentials: only if alerts are needed while the app is closed/backgrounded.

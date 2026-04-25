@@ -55,4 +55,9 @@ public class StudySessionController {
     ProgressCaptureResponse uploadProgressCapture(@PathVariable UUID sessionId, @RequestPart("file") MultipartFile file) {
         return studySessionService.uploadProgressCapture(currentStudent.id(), sessionId, file);
     }
+
+    @PostMapping(value = "/{sessionId}/focus-checks", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    FocusCheckResponse uploadFocusCheck(@PathVariable UUID sessionId, @RequestPart("file") MultipartFile file) {
+        return studySessionService.uploadFocusCheck(currentStudent.id(), sessionId, file);
+    }
 }

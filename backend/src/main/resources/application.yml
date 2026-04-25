@@ -34,6 +34,7 @@ management:
 
 ai-tutor:
   storage:
-    local-root: ${LOCAL_STORAGE_ROOT:../local-storage}
+    local-root: ${LOCAL_STORAGE_ROOT:/Users/vipul.pandey/images}
   worker:
     base-url: ${PYTHON_WORKER_BASE_URL:http://localhost:8000}
+    internal-token: ${PYTHON_WORKER_INTERNAL_TOKEN:dev-worker-token}

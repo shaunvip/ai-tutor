@@ -8,6 +8,6 @@ public record AiTutorProperties(Storage storage, Worker worker) {
     public record Storage(String localRoot) {
     }
 
-    public record Worker(String baseUrl) {
+    public record Worker(String baseUrl, String internalToken) {
     }
 }

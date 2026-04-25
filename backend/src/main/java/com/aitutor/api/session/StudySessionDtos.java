@@ -40,3 +40,12 @@ record FocusEventResponse(
         String note
 ) {
 }
+
+record FocusCheckResponse(
+        boolean lookingAway,
+        boolean alert,
+        double confidence,
+        String reason,
+        String alertMessage
+) {
+}

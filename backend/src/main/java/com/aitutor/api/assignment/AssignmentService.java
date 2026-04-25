@@ -58,7 +58,7 @@ public class AssignmentService {
     @Transactional
     public AssignmentResponse uploadHomeworkImage(UUID studentId, UUID assignmentId, MultipartFile file) {
         Assignment assignment = findOwned(studentId, assignmentId);
-        StoredFile stored = storageService.save(file, "assignments");
+        StoredFile stored = storageService.save(file, studentId, "assignments");
         assets.save(new AssignmentAsset(
                 assignment.getId(),
                 HOMEWORK_IMAGE,

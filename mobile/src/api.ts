@@ -49,6 +49,14 @@ export type ProgressCapture = {
   summary?: string;
 };
 
+export type FocusCheck = {
+  lookingAway: boolean;
+  alert: boolean;
+  confidence: number;
+  reason: string;
+  alertMessage: string;
+};
+
 export type TutorThread = {
   id: string;
   sessionId?: string;
@@ -109,6 +117,10 @@ export async function completeStep(sessionId: string, stepOrder: number) {
 
 export async function uploadProgressCapture(sessionId: string, uri: string) {
   return upload<ProgressCapture>(`/api/study-sessions/${sessionId}/progress-captures`, uri);
+}
+
+export async function uploadFocusCheck(sessionId: string, uri: string) {
+  return upload<FocusCheck>(`/api/study-sessions/${sessionId}/focus-checks`, uri);
 }
 
 export async function sendFocusEvent(sessionId: string, eventType: string, durationSeconds: number, note?: string) {

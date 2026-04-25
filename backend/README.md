@@ -30,7 +30,16 @@ DATABASE_URL=jdbc:postgresql://localhost:5432/ai_tutor
 DATABASE_USERNAME=ai_tutor
 DATABASE_PASSWORD=ai_tutor
 PYTHON_WORKER_BASE_URL=http://localhost:8000
-LOCAL_STORAGE_ROOT=../local-storage
+PYTHON_WORKER_INTERNAL_TOKEN=dev-worker-token
+LOCAL_STORAGE_ROOT=/Users/vipul.pandey/images
+```
+
+Captured homework and progress images are saved under `LOCAL_STORAGE_ROOT`, grouped by student id:
+
+```text
+{studentId}/assignments
+{studentId}/progress
+{studentId}/focus
 ```
 
 No external auth provider, queue, or Flyway is used.

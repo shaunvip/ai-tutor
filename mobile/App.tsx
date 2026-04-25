@@ -1,7 +1,8 @@
 import * as ImagePicker from "expo-image-picker";
 import * as Speech from "expo-speech";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +19,7 @@ import {
 
 import {
   Assignment,
+  FocusCheck,
   ProgressCapture,
   StudySession,
   analyzeAssignment,
@@ -27,16 +29,22 @@ import {
   login,
   register,
   saveToken,
-  sendFocusEvent,
   sendTutorMessage,
   startSession,
   uploadHomeworkImage,
+  uploadFocusCheck,
   uploadProgressCapture
 } from "./src/api";
 
 type AuthMode = "login" | "register";
+type CaptureRate = 3 | 4;
 
 export default function StudyHome() {
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const autoCameraRef = useRef<CameraView | null>(null);
+  const autoCaptureBusyRef = useRef(false);
+  const focusCheckBusyRef = useRef(false);
+  const lastFocusAlertAtRef = useRef(0);
   const [authMode, setAuthMode] = useState<AuthMode>("register");
   const [tokenReady, setTokenReady] = useState(false);
   const [username, setUsername] = useState("student1");
@@ -48,11 +56,20 @@ export default function StudyHome() {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [session, setSession] = useState<StudySession | null>(null);
   const [latestProgress, setLatestProgress] = useState<ProgressCapture | null>(null);
+  const [latestFocusCheck, setLatestFocusCheck] = useState<FocusCheck | null>(null);
   const [question, setQuestion] = useState("");
   const [tutorReply, setTutorReply] = useState("");
+  const [tutorBusy, setTutorBusy] = useState(false);
   const [focusSeconds, setFocusSeconds] = useState(0);
   const [focusWatchOn, setFocusWatchOn] = useState(false);
+  const [focusAlertText, setFocusAlertText] = useState("");
+  const [focusCheckError, setFocusCheckError] = useState("");
   const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [autoCaptureOn, setAutoCaptureOn] = useState(false);
+  const [autoCaptureReady, setAutoCaptureReady] = useState(false);
+  const [autoCapturesPerMinute, setAutoCapturesPerMinute] = useState<CaptureRate>(3);
+  const [autoCaptureCount, setAutoCaptureCount] = useState(0);
+  const [autoCaptureError, setAutoCaptureError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const currentStep = useMemo(() => {
@@ -60,25 +77,108 @@ export default function StudyHome() {
     return assignment.steps.find((step) => step.stepOrder === session.currentStepOrder) ?? assignment.steps.at(-1);
   }, [assignment, session]);
 
-  const focusNudgeText = `Back to ${currentStep?.title ?? "your work"}.`;
+  const focusNudgeText = focusAlertText || `Back to ${currentStep?.title ?? "your work"}.`;
+  const autoCaptureIntervalSeconds = Math.round(60 / autoCapturesPerMinute);
+  const studyCameraOn = autoCaptureOn || focusWatchOn;
 
   useEffect(() => {
     if (!focusWatchOn || !session) return;
     const interval = setInterval(() => {
-      setFocusSeconds((value) => {
-        const next = value + 1;
-        if (next === 20) {
-          setNudgeVisible(true);
-          speakNudge(focusNudgeText);
-          sendFocusEvent(session.id, "focus_nudge_shown", next, "Local nudge threshold reached").catch(
-            () => undefined
-          );
-        }
-        return next;
-      });
+      setFocusSeconds((value) => value + 1);
     }, 1000);
     return () => clearInterval(interval);
   }, [focusWatchOn, session]);
+
+  const runAutoProgressCapture = useCallback(async () => {
+    const sessionId = session?.id;
+    if (!sessionId || !autoCameraRef.current || autoCaptureBusyRef.current) return;
+
+    autoCaptureBusyRef.current = true;
+    setAutoCaptureError("");
+    try {
+      const picture = await autoCameraRef.current.takePictureAsync({
+        quality: 0.45
+      });
+      if (!picture?.uri) return;
+      const progress = await uploadProgressCapture(sessionId, picture.uri);
+      setLatestProgress(progress);
+      setAutoCaptureCount((value) => value + 1);
+    } catch (error) {
+      setAutoCaptureError(error instanceof Error ? error.message : "Auto capture failed");
+    } finally {
+      autoCaptureBusyRef.current = false;
+    }
+  }, [session?.id]);
+
+  useEffect(() => {
+    if (!autoCaptureOn || !session || !autoCaptureReady || !cameraPermission?.granted) return;
+    const interval = setInterval(() => {
+      void runAutoProgressCapture();
+    }, autoCaptureIntervalSeconds * 1000);
+    return () => clearInterval(interval);
+  }, [
+    autoCaptureIntervalSeconds,
+    autoCaptureOn,
+    autoCaptureReady,
+    cameraPermission?.granted,
+    runAutoProgressCapture,
+    session
+  ]);
+
+  const runFocusCheck = useCallback(async () => {
+    const sessionId = session?.id;
+    if (
+      !sessionId ||
+      !autoCameraRef.current ||
+      focusCheckBusyRef.current ||
+      autoCaptureBusyRef.current ||
+      nudgeVisible
+    ) {
+      return;
+    }
+
+    focusCheckBusyRef.current = true;
+    setFocusCheckError("");
+    try {
+      const picture = await autoCameraRef.current.takePictureAsync({
+        quality: 0.35
+      });
+      if (!picture?.uri) return;
+      const focusCheck = await uploadFocusCheck(sessionId, picture.uri);
+      setLatestFocusCheck(focusCheck);
+      if (focusCheck.alert) {
+        const now = Date.now();
+        if (now - lastFocusAlertAtRef.current > 10_000) {
+          const message = focusCheck.alertMessage || "Please look back at your book and continue.";
+          lastFocusAlertAtRef.current = now;
+          setFocusAlertText(message);
+          setNudgeVisible(true);
+          speakNudge(message);
+        }
+      }
+    } catch (error) {
+      setFocusCheckError(error instanceof Error ? error.message : "Focus check failed");
+    } finally {
+      focusCheckBusyRef.current = false;
+    }
+  }, [nudgeVisible, session?.id]);
+
+  useEffect(() => {
+    if (!focusWatchOn || !session || !autoCaptureReady || !cameraPermission?.granted) return;
+    void runFocusCheck();
+    const interval = setInterval(() => {
+      void runFocusCheck();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoCaptureReady, cameraPermission?.granted, focusWatchOn, runFocusCheck, session]);
+
+  useEffect(() => {
+    if (!session) {
+      setAutoCaptureOn(false);
+      setAutoCaptureReady(false);
+      setFocusWatchOn(false);
+    }
+  }, [session]);
 
   async function run<T>(action: () => Promise<T>, onSuccess?: (value: T) => void) {
     try {
@@ -163,15 +263,61 @@ export default function StudyHome() {
     await run(() => uploadProgressCapture(session.id, capture.assets[0].uri), setLatestProgress);
   }
 
+  async function handleToggleAutoCapture() {
+    if (autoCaptureOn) {
+      setAutoCaptureOn(false);
+      if (!focusWatchOn) setAutoCaptureReady(false);
+      return;
+    }
+
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
+    if (!permission.granted) {
+      Alert.alert("Camera needed", "Camera access is required for automatic progress capture.");
+      return;
+    }
+
+    setAutoCaptureCount(0);
+    setAutoCaptureError("");
+    setAutoCaptureReady(false);
+    setAutoCaptureOn(true);
+  }
+
+  async function handleToggleFocusWatch() {
+    if (focusWatchOn) {
+      setFocusWatchOn(false);
+      if (!autoCaptureOn) setAutoCaptureReady(false);
+      return;
+    }
+
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
+    if (!permission.granted) {
+      Alert.alert("Camera needed", "Camera access is required to watch focus.");
+      return;
+    }
+
+    setFocusSeconds(0);
+    setFocusAlertText("");
+    setFocusCheckError("");
+    setLatestFocusCheck(null);
+    setAutoCaptureReady(false);
+    setFocusWatchOn(true);
+  }
+
   async function handleTutorAsk() {
     if (!question.trim()) return;
-    await run(
-      async () => {
-        const thread = await createTutorThread(session?.id);
-        return sendTutorMessage(thread.id, "hint", question);
-      },
-      (message) => setTutorReply(message.content)
-    );
+    setTutorBusy(true);
+    setTutorReply("");
+    try {
+      const thread = await createTutorThread(session?.id);
+      const message = await sendTutorMessage(thread.id, "hint", question);
+      const reply = message.content || "Try reading the question again and tell me which word is confusing.";
+      setTutorReply(reply);
+      Alert.alert("Tutor Hint", reply);
+    } catch (error) {
+      Alert.alert("Hint failed", error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setTutorBusy(false);
+    }
   }
 
   function speakNudge(text: string) {
@@ -226,7 +372,10 @@ export default function StudyHome() {
           <Pressable
             accessibilityLabel="Ask tutor"
             style={styles.iconButton}
-            onPress={() => setQuestion((value) => value || "I need help with the current question.")}
+            onPress={() => {
+              setQuestion((value) => value || `I need help with ${currentStep?.title ?? "the current question"}.`);
+              setTutorReply("");
+            }}
           >
             <Ionicons name="hand-left-outline" size={22} color="#243447" />
           </Pressable>
@@ -262,13 +411,60 @@ export default function StudyHome() {
               <ActionButton
                 icon={<Ionicons name="timer-outline" size={18} color="#fff" />}
                 label={focusWatchOn ? `${focusSeconds}s` : "Focus"}
-                onPress={() => {
-                  setFocusSeconds(0);
-                  setFocusWatchOn((value) => !value);
-                }}
+                onPress={handleToggleFocusWatch}
                 compact
                 secondary
               />
+            </View>
+            <View style={styles.autoCapturePanel}>
+              <View style={styles.autoCaptureHeader}>
+                <View>
+                  <Text style={styles.autoCaptureTitle}>Auto Capture</Text>
+                  <Text style={styles.muted}>
+                    {autoCaptureOn ? `${autoCaptureCount} saved · every ${autoCaptureIntervalSeconds}s` : "Progress off"}
+                  </Text>
+                  {focusWatchOn ? <Text style={styles.muted}>Focus check every 5s</Text> : null}
+                </View>
+                <ActionButton
+                  icon={<Ionicons name={autoCaptureOn ? "pause" : "aperture-outline"} size={18} color="#fff" />}
+                  label={autoCaptureOn ? "Stop" : "Auto"}
+                  onPress={handleToggleAutoCapture}
+                  compact
+                  secondary={autoCaptureOn}
+                />
+              </View>
+              <View style={styles.captureRateRow}>
+                <SegmentButton
+                  label="3/min"
+                  active={autoCapturesPerMinute === 3}
+                  onPress={() => setAutoCapturesPerMinute(3)}
+                />
+                <SegmentButton
+                  label="4/min"
+                  active={autoCapturesPerMinute === 4}
+                  onPress={() => setAutoCapturesPerMinute(4)}
+                />
+              </View>
+              {studyCameraOn && cameraPermission?.granted ? (
+                <CameraView
+                  ref={autoCameraRef}
+                  style={styles.cameraPreview}
+                  facing="front"
+                  mode="picture"
+                  mirror
+                  active={studyCameraOn}
+                  onCameraReady={() => setAutoCaptureReady(true)}
+                  onMountError={(event) => setAutoCaptureError(event.message)}
+                />
+              ) : null}
+              {autoCaptureError ? <Text style={styles.errorText}>{autoCaptureError}</Text> : null}
+              {focusCheckError ? <Text style={styles.errorText}>{focusCheckError}</Text> : null}
+              {latestFocusCheck ? (
+                <Text style={styles.muted}>
+                  Focus: {latestFocusCheck.lookingAway ? "looking away" : "ok"} ·{" "}
+                  {Math.round(latestFocusCheck.confidence * 100)}%
+                </Text>
+              ) : null}
             </View>
             {latestProgress ? (
               <View style={styles.progressBand}>
@@ -288,7 +484,17 @@ export default function StudyHome() {
             multiline
           />
           <ActionButton icon={<Ionicons name="help-circle-outline" size={18} color="#fff" />} label="Hint" onPress={handleTutorAsk} />
-          {tutorReply ? <Text style={styles.reply}>{tutorReply}</Text> : null}
+          {tutorBusy ? (
+            <View style={styles.reply}>
+              <ActivityIndicator color="#255f85" />
+            </View>
+          ) : null}
+          {tutorReply ? (
+            <View style={styles.reply}>
+              <Text style={styles.replyLabel}>Tutor Hint</Text>
+              <Text style={styles.replyText}>{tutorReply}</Text>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -307,6 +513,7 @@ export default function StudyHome() {
               onPress={() => {
                 Speech.stop();
                 setNudgeVisible(false);
+                setFocusAlertText("");
                 setFocusSeconds(0);
               }}
             />
@@ -589,6 +796,42 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 34
   },
+  autoCapturePanel: {
+    borderColor: "#e1e8ed",
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 10
+  },
+  autoCaptureHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  autoCaptureTitle: {
+    color: "#243447",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  captureRateRow: {
+    backgroundColor: "#dbe5ea",
+    borderRadius: 8,
+    flexDirection: "row",
+    padding: 3
+  },
+  cameraPreview: {
+    backgroundColor: "#1f2933",
+    borderRadius: 8,
+    height: 180,
+    overflow: "hidden",
+    width: "100%"
+  },
+  errorText: {
+    color: "#b42318",
+    fontSize: 13,
+    fontWeight: "600"
+  },
   progressBand: {
     backgroundColor: "#eef3f5",
     borderRadius: 8,
@@ -600,12 +843,23 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   reply: {
+    alignItems: "flex-start",
     backgroundColor: "#eef3f5",
     borderRadius: 8,
+    gap: 6,
+    padding: 12
+  },
+  replyLabel: {
+    color: "#255f85",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0,
+    textTransform: "uppercase"
+  },
+  replyText: {
     color: "#243447",
     fontSize: 15,
-    lineHeight: 21,
-    padding: 12
+    lineHeight: 21
   },
   modalBackdrop: {
     alignItems: "center",
